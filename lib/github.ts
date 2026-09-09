@@ -14,7 +14,7 @@ async function github<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-type Issue = { state: string; title: string };
+type Issue = { state: string; title: string; number: number };
 type Run = { conclusion: string | null };
 
 const workflowStages = [
@@ -34,7 +34,7 @@ export async function getGitHubMetrics() {
 
   const stageIssues = workflowStages.map(([id, label]) => {
     const issue = issues.find((item) => item.title.startsWith(`[${label}]`));
-    return { id, label, state: issue?.state ?? "missing", issueNumber: issue ? Number(issue.title.match(/^\[[^\]]+\]/)?.[0].length ?? 0) : null };
+    return { id, label, state: issue?.state ?? "missing", issueNumber: issue?.number ?? null };
   });
   const tracked = stageIssues.filter((stage) => stage.state !== "missing");
   const completedStages = tracked.filter((stage) => stage.state === "closed").length;
