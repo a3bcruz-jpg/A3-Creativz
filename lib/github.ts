@@ -15,7 +15,8 @@ async function github<T>(path: string): Promise<T> {
 }
 
 type Issue = { state: string; title: string; number: number };
-type Run = { conclusion: string | null };
+type Run = { conclusion: string | null; status: string };
+type Deployment = { environment: string | null; created_at: string; updated_at: string };
 
 const workflowStages = [
   ["planning", "Planning"], ["design", "UI/UX Design"], ["development", "Development"],
@@ -24,12 +25,13 @@ const workflowStages = [
 ] as const;
 
 export async function getGitHubMetrics() {
-  const [repository, commits, prs, issues, runs] = await Promise.all([
+  const [repository, commits, prs, issues, runs, deployments] = await Promise.all([
     github<{ stargazers_count: number; forks_count: number; pushed_at: string }>(`/repos/${repo}`),
     github<unknown[]>(`/repos/${repo}/commits?per_page=100`),
     github<unknown[]>(`/repos/${repo}/pulls?state=all&per_page=100`),
     github<Issue[]>(`/repos/${repo}/issues?state=all&per_page=100`),
     github<Run[]>(`/repos/${repo}/actions/runs?per_page=100`),
+    github<Deployment[]>(`/repos/${repo}/deployments?per_page=10`),
   ]);
 
   const stageIssues = workflowStages.map(([id, label]) => {
@@ -41,6 +43,7 @@ export async function getGitHubMetrics() {
   const progress = tracked.length ? Math.round((completedStages / tracked.length) * 100) : 0;
   const current = stageIssues.find((stage) => stage.state === "open") ?? stageIssues.find((stage) => stage.state === "missing");
   const successfulRuns = runs.filter((run) => run.conclusion === "success").length;
+  const latestRun = runs[0];
 
   return {
     repository: repo,
@@ -50,6 +53,10 @@ export async function getGitHubMetrics() {
     closedIssues: issues.filter((issue) => issue.state === "closed").length,
     workflowRuns: runs.length,
     successfulRuns,
+    ciStatus: latestRun?.status ?? "unknown",
+    ciConclusion: latestRun?.conclusion ?? null,
+    deploymentCount: deployments.length,
+    lastDeployment: deployments[0]?.updated_at ?? null,
     stars: repository.stargazers_count,
     forks: repository.forks_count,
     lastPush: repository.pushed_at,
